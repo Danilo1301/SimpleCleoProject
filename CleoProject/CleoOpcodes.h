@@ -1,10 +1,9 @@
-#include "CleoFunctions.h"
-
-#include "Log.h"
+#pragma once
 
 #include "IScriptCommands.h"
 extern IScriptCommands* scriptCommands;
 
+static DEFOPCODE(01F5, GET_PLAYER_ACTOR, iv); //01F5: $PLAYER_ACTOR = get_player_actor $PLAYER_CHAR 
 static DEFOPCODE(01B9, SET_ACTOR_ARMED_WEAPON, ii); //01B9: set_actor 2@ armed_weapon_to 0 
 static DEFOPCODE(0635, AIM_AT_ACTOR, iii); //0635: AS_actor -1 aim_at_actor $PLAYER_ACTOR 2000 ms 
 static DEFOPCODE(03A3, ACTOR_MALE, i); //03A3: actor 0@ male 
@@ -111,7 +110,6 @@ static DEFOPCODE(01C3, REMOVE_REFERENCES_TO_CAR, i); //01C3: remove_references_t
 static DEFOPCODE(01C2, REMOVE_REFERENCES_TO_ACTOR, i); //01C2: remove_references_to_actor 2@
 static DEFOPCODE(01B4, SET_PLAYER_CAN_MOVE, ib); //01B4: set_player $PLAYER_CHAR can_move 1 
 static DEFOPCODE(0812, PERFORM_ANIMATION_AS_ACTOR, issfbbbbi); //0812: AS_actor 0@ perform_animation "handsup" IFP "PED" framedelta 4.0 loopA 0 lockX 0 lockY 0 lockF 1 time -1
-static DEFOPCODE(01F5, GET_PLAYER_ACTOR, iv); //01F5: $PLAYER_ACTOR = get_player_actor $PLAYER_CHAR 
 static DEFOPCODE(00A0, GET_CHAR_COORDINATES, ivvv);
 static DEFOPCODE(036D, SHOW_TEXT_2NUMBERS_STYLED, siiii);
 static DEFOPCODE(02FF, SHOW_TEXT_3NUMBERS, siiiii); //02FF: show_text_3numbers GXT 'MODPMV1' numbers 8@ 9@ 10@ time 2300 flag 1
@@ -124,784 +122,689 @@ static DEFOPCODE(0256, PLAYER_DEFINED, i); //0256: player $PLAYER_CHAR defined
 static DEFOPCODE(04EE, HAS_ANIMATION_LOADED, s); //04EE: animation "GANGS" loaded 
 static DEFOPCODE(04ED, LOAD_ANIMATION, s); //04ED: load_animation "GANGS"
 
-std::vector<WaitFunction*> CleoFunctions::m_WaitFunctions;
-
-void CleoFunctions::Update(int dt)
+static void WAIT(int time, std::function<void()> callback)
 {
-    for(auto waitFunction : m_WaitFunctions)
-    {
-        if(waitFunction->isConditionFunction)
-        {
-            waitFunction->conditionFn([waitFunction] () {
-                waitFunction->state = WAIT_FN_STATE::WAIT_FN_COMPLETED;
-            }, [waitFunction] () {
-                waitFunction->state = WAIT_FN_STATE::WAIT_FN_CANCELLED;
-            });
-            continue;
-        }
-
-        if(waitFunction->isTestFunction)
-        {
-            auto result = waitFunction->testFn();
-            if(result) waitFunction->state = WAIT_FN_STATE::WAIT_FN_COMPLETED;
-            continue;
-        }
-
-        waitFunction->timePassed += dt;
-        if(waitFunction->timePassed >= waitFunction->time)
-        {
-            waitFunction->state = WAIT_FN_STATE::WAIT_FN_COMPLETED;
-        }
-    }
-
-    std::vector<WaitFunction*> toRemove;
-
-    for(auto waitFunction : m_WaitFunctions)
-    {
-        if(waitFunction->state == WAIT_FN_STATE::WAIT_FN_COMPLETED)
-        {
-            waitFunction->onComplete();
-            toRemove.push_back(waitFunction);
-        }
-
-        if(waitFunction->state == WAIT_FN_STATE::WAIT_FN_CANCELLED)
-        {
-            waitFunction->onCancel();
-            toRemove.push_back(waitFunction);
-        }
-    }
-
-    for(auto waitFunction : toRemove)
-    {
-        RemoveWaitFunction(waitFunction);
-    }
+    scriptCommands->Wait(time, callback);
 }
 
-WaitFunction* CleoFunctions::AddWaitFunction(int time, std::function<void()> callback)
+static int GET_PLAYER_ACTOR(int player)
 {
-    WaitFunction* waitFunction = new WaitFunction();
-    waitFunction->time = time;
-    waitFunction->onComplete = callback;
-    m_WaitFunctions.push_back(waitFunction);
-    return waitFunction;
+    int playerActor = 0;
+    scriptCommands->ScriptCommand(&scm_GET_PLAYER_ACTOR, player, &playerActor);
+    return playerActor;
 }
 
-void CleoFunctions::RemoveWaitFunction(WaitFunction* waitFunction)
-{
-    auto it = std::find(m_WaitFunctions.begin(), m_WaitFunctions.end(), waitFunction);
-    if (it == m_WaitFunctions.end()) return;
-    m_WaitFunctions.erase(it);
-    delete waitFunction;
-}
-
-WaitFunction* CleoFunctions::AddWaitForFunction(std::function<bool()> testFn, std::function<void()> callback)
-{
-    WaitFunction* waitFunction = new WaitFunction();
-    waitFunction->time = 0;
-    waitFunction->onComplete = callback;
-    waitFunction->isTestFunction = true;
-    waitFunction->testFn = testFn;
-    m_WaitFunctions.push_back(waitFunction);
-
-    return waitFunction;
-}
-
-WaitFunction* CleoFunctions::AddCondition(std::function<void(std::function<void()>, std::function<void()>)> fn, std::function<void()> onComplete, std::function<void()> onCancel)
-{
-    WaitFunction* waitFunction = new WaitFunction();
-    waitFunction->time = 0;
-    waitFunction->onComplete = onComplete;
-    waitFunction->onCancel = onCancel;
-    waitFunction->isConditionFunction = true;
-    waitFunction->conditionFn = fn;
-    m_WaitFunctions.push_back(waitFunction);
-
-    return waitFunction;
-}
-
-void CleoFunctions::WAIT(int time, std::function<void()> callback)
-{
-    AddWaitFunction(time, callback);
-}
-
-void CleoFunctions::SET_ACTOR_ARMED_WEAPON(int _char, int weaponType)
+static void SET_ACTOR_ARMED_WEAPON(int _char, int weaponType)
 {
     scriptCommands->ScriptCommand(&scm_SET_ACTOR_ARMED_WEAPON, _char, weaponType);
 }
 
-void CleoFunctions::AIM_AT_ACTOR(int _char, int target, int time)
+static void AIM_AT_ACTOR(int _char, int target, int time)
 {
     scriptCommands->ScriptCommand(&scm_AIM_AT_ACTOR, _char, target, time);
 }
 
-bool CleoFunctions::ACTOR_MALE(int _char)
+static bool ACTOR_MALE(int _char)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_ACTOR_MALE, _char);
     return result;
 }
 
-float CleoFunctions::GET_CAR_Z_ANGLE(int car)
+static float GET_CAR_Z_ANGLE(int car)
 {
     float heading = 0;
     scriptCommands->ScriptCommand(&scm_GET_CAR_Z_ANGLE, car, &heading);
     return heading;
 }
 
-int CleoFunctions::GET_CURRENT_WEAPON(int _char)
+static int GET_CURRENT_WEAPON(int _char)
 {
     int weaponType = 0;
     scriptCommands->ScriptCommand(&scm_GET_CURRENT_WEAPON, _char, &weaponType);
     return weaponType;
 }
 
-void CleoFunctions::GET_WEAPON_DATA_FROM_ACTOR(int _char, int weaponSlotId, int* weaponType, int* weaponAmmo, int* weaponModel)
+static void GET_WEAPON_DATA_FROM_ACTOR(int _char, int weaponSlotId, int* weaponType, int* weaponAmmo, int* weaponModel)
 {
     scriptCommands->ScriptCommand(&scm_GET_WEAPON_DATA_FROM_ACTOR, _char, weaponSlotId, weaponType, weaponAmmo, weaponModel);
 }
 
-void CleoFunctions::ATTACH_TO_OBJECT_AND_PERFORM_ANIMATION(int _char, int object, float offsetX, float offsetY, float offsetZ, int boneId, int _p7, const char* animationName, const char* animationFile, int time)
+static void ATTACH_TO_OBJECT_AND_PERFORM_ANIMATION(int _char, int object, float offsetX, float offsetY, float offsetZ, int boneId, int _p7, const char* animationName, const char* animationFile, int time)
 {
     scriptCommands->ScriptCommand(&scm_ATTACH_TO_OBJECT_AND_PERFORM_ANIMATION, _char, object, offsetX, offsetY, offsetZ, boneId, _p7, animationName, animationFile, time);
 }
 
-void CleoFunctions::PLAY_SOUND(float x, float y, float z, int soundId)
+static void PLAY_SOUND(float x, float y, float z, int soundId)
 {
     scriptCommands->ScriptCommand(&scm_PLAY_SOUND, x, y, z, soundId);
 }
 
-void CleoFunctions::SET_OBJECT_VISIBILITY(int object, bool state)
+static void SET_OBJECT_VISIBILITY(int object, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_OBJECT_VISIBILITY, object, state);
 }
 
-void CleoFunctions::ADD_MONEY(int player, int money)
+static void ADD_MONEY(int player, int money)
 {
     scriptCommands->ScriptCommand(&scm_ADD_MONEY, player, money);
 }
 
-void CleoFunctions::SET_HELI_BEHAVIOR_TO_POLICE_HELI_AND_FOLLOW(int heli, int _char, int vehicle, float radius)
+static void SET_HELI_BEHAVIOR_TO_POLICE_HELI_AND_FOLLOW(int heli, int _char, int vehicle, float radius)
 {
     scriptCommands->ScriptCommand(&scm_SET_HELI_BEHAVIOR_TO_POLICE_HELI_AND_FOLLOW, heli, _char, vehicle, radius);
 }
 
-void CleoFunctions::SET_ACTOR_ANGLE_TO(int _char, float heading)
+static void SET_ACTOR_ANGLE_TO(int _char, float heading)
 {
     scriptCommands->ScriptCommand(&scm_SET_ACTOR_ANGLE_TO, _char, heading);
 }
 
-void CleoFunctions::PUT_ACTOR_INTO_TURRET_ON_CAR(int _char, int vehicle, float offsetX, float offsetY, float offsetZ, int position, float angleLimit, int weaponType)
+static void PUT_ACTOR_INTO_TURRET_ON_CAR(int _char, int vehicle, float offsetX, float offsetY, float offsetZ, int position, float angleLimit, int weaponType)
 {
     scriptCommands->ScriptCommand(&scm_PUT_ACTOR_INTO_TURRET_ON_CAR, _char, vehicle, offsetX, offsetY, offsetZ, position, angleLimit, weaponType);
 }
 
-void CleoFunctions::REMOVE_ACTOR_FROM_TURRET_MODE(int _char)
+static void REMOVE_ACTOR_FROM_TURRET_MODE(int _char)
 {
     scriptCommands->ScriptCommand(&scm_REMOVE_ACTOR_FROM_TURRET_MODE, _char);
 }
 
-void CleoFunctions::ENABLE_ACTOR_COLLISION_DETECTION(int _char, bool state)
+static void ENABLE_ACTOR_COLLISION_DETECTION(int _char, bool state)
 {
     scriptCommands->ScriptCommand(&scm_ENABLE_ACTOR_COLLISION_DETECTION, _char, state);
 }
 
-void CleoFunctions::SET_OBJECT_COLLISION_DETECTION(int object, bool state)
+static void SET_OBJECT_COLLISION_DETECTION(int object, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_OBJECT_COLLISION_DETECTION, object, state);
 }
 
-void CleoFunctions::PUT_ACTOR_INTO_TURRET_ON_OBJECT(int _char, int object, float offsetX, float offsetY, float offsetZ, int orientation, float angleLimit, int weaponType)
+static void PUT_ACTOR_INTO_TURRET_ON_OBJECT(int _char, int object, float offsetX, float offsetY, float offsetZ, int orientation, float angleLimit, int weaponType)
 {
     scriptCommands->ScriptCommand(&scm_PUT_ACTOR_INTO_TURRET_ON_OBJECT, _char, object, offsetX, offsetY, offsetZ, orientation, angleLimit, weaponType);
 }
 
-void CleoFunctions::ATTACH_OBJECT_TO_ACTOR(int object, int _char, float offsetX, float offsetY, float offsetZ, float rotationX, float rotationY, float rotationZ)
+static void ATTACH_OBJECT_TO_ACTOR(int object, int _char, float offsetX, float offsetY, float offsetZ, float rotationX, float rotationY, float rotationZ)
 {
     scriptCommands->ScriptCommand(&scm_ATTACH_OBJECT_TO_ACTOR, object, _char, offsetX, offsetY, offsetZ, rotationX, rotationY, rotationZ);
 }
 
-int CleoFunctions::ACTOR_HEALTH(int _char)
+static int ACTOR_HEALTH(int _char)
 {
     int health = 0;
     scriptCommands->ScriptCommand(&scm_ACTOR_HEALTH, _char, &health);
     return health;
 }
 
-void CleoFunctions::SET_PLAYER_WANTED_LEVEL(int player, int wantedLevel)
+static void SET_PLAYER_WANTED_LEVEL(int player, int wantedLevel)
 {
     scriptCommands->ScriptCommand(&scm_SET_PLAYER_WANTED_LEVEL, player, wantedLevel);
 }
 
-void CleoFunctions::DESTROY_PICKUP(int pickup)
+static void DESTROY_PICKUP(int pickup)
 {
     scriptCommands->ScriptCommand(&scm_DESTROY_PICKUP, pickup);
 }
 
-int CleoFunctions::CREATE_PICKUP(int modelId, int pickupType, float x, float y, float z)
+static int CREATE_PICKUP(int modelId, int pickupType, float x, float y, float z)
 {
     int pickup = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_PICKUP, modelId, pickupType, x, y, z, &pickup);
     return pickup;
 }
 
-void CleoFunctions::SET_ACTOR_HEALTH(int _char, int health)
+static void SET_ACTOR_HEALTH(int _char, int health)
 {
     scriptCommands->ScriptCommand(&scm_SET_ACTOR_HEALTH, _char, health);
 }
 
-void CleoFunctions::HELI_FLY_TO(int heli, float x, float y, float z, float minAltitude, float maxAltitude)
+static void HELI_FLY_TO(int heli, float x, float y, float z, float minAltitude, float maxAltitude)
 {
     scriptCommands->ScriptCommand(&scm_HELI_FLY_TO, heli, x, y, z, minAltitude, maxAltitude);
 }
 
-void CleoFunctions::AS_ACTOR_EXIT_CAR(int _char)
+static void AS_ACTOR_EXIT_CAR(int _char)
 {
     scriptCommands->ScriptCommand(&scm_AS_ACTOR_EXIT_CAR, _char);
 }
 
-float CleoFunctions::CAR_SPEED(int car)
+static float CAR_SPEED(int car)
 {
     float speed = 0;
     scriptCommands->ScriptCommand(&scm_CAR_SPEED, car, &speed);
     return speed;
 }
 
-int CleoFunctions::ACTOR_USED_CAR(int _char)
+static int ACTOR_USED_CAR(int _char)
 {
     int car = 0;
     scriptCommands->ScriptCommand(&scm_ACTOR_USED_CAR, _char, &car);
     return car;
 }
 
-bool CleoFunctions::ACTOR_DRIVING(int _char)
+static bool ACTOR_DRIVING(int _char)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_ACTOR_DRIVING, _char);
     return result;
 }
 
-void CleoFunctions::ACTOR_DRIVEBY(int _char, int targetChar, int targetVehicle, float x, float y, float z, float radius, int style, bool rightHandCarSeat, int fireRate)
+static void ACTOR_DRIVEBY(int _char, int targetChar, int targetVehicle, float x, float y, float z, float radius, int style, bool rightHandCarSeat, int fireRate)
 {
     scriptCommands->ScriptCommand(&scm_ACTOR_DRIVEBY, _char, targetChar, targetVehicle, x, y, z, radius, style, rightHandCarSeat, fireRate);
 }
 
-bool CleoFunctions::CAR_PASSENGER_SEAT_FREE(int car, int seatId)
+static bool CAR_PASSENGER_SEAT_FREE(int car, int seatId)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_CAR_PASSENGER_SEAT_FREE, car, seatId);
     return result;
 }
 
-int CleoFunctions::GET_ACTOR_HANDLE_FROM_CAR_PASSENGER_SEAT(int car, int seatId)
+static int GET_ACTOR_HANDLE_FROM_CAR_PASSENGER_SEAT(int car, int seatId)
 {
     int _char = 0;
     scriptCommands->ScriptCommand(&scm_GET_ACTOR_HANDLE_FROM_CAR_PASSENGER_SEAT, car, seatId, &_char);
     return _char;
 }
 
-int CleoFunctions::CAR_MAX_PASSENGERS(int car)
+static int CAR_MAX_PASSENGERS(int car)
 {
     int maxPassengers = 0;
     scriptCommands->ScriptCommand(&scm_CAR_MAX_PASSENGERS, car, &maxPassengers);
     return maxPassengers;
 }
 
-bool CleoFunctions::ACTOR_STOPPED(int _char)
+static bool ACTOR_STOPPED(int _char)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_ACTOR_STOPPED, _char);
     return result;
 }
 
-bool CleoFunctions::MODEL_AVAILABLE(int modelId)
+static bool MODEL_AVAILABLE(int modelId)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_MODEL_AVAILABLE, modelId);
     return result;
 }
 
-void CleoFunctions::LOAD_MODEL(int modelId)
+static void LOAD_MODEL(int modelId)
 {
     scriptCommands->ScriptCommand(&scm_LOAD_MODEL, modelId);
 }
 
-void CleoFunctions::LOAD_REQUESTED_MODELS()
+static void LOAD_REQUESTED_MODELS()
 {
     scriptCommands->ScriptCommand(&scm_LOAD_REQUESTED_MODELS);
 }
 
-void CleoFunctions::DESTROY_OBJECT(int object)
+static void DESTROY_OBJECT(int object)
 {
     scriptCommands->ScriptCommand(&scm_DESTROY_OBJECT, object);
 }
 
-void CleoFunctions::DEFLATE_TIRE_ON_CAR(int car, int tireId)
+static void DEFLATE_TIRE_ON_CAR(int car, int tireId)
 {
     scriptCommands->ScriptCommand(&scm_DEFLATE_TIRE_ON_CAR, car, tireId);
 }
 
-void CleoFunctions::SET_OBJECT_Z_ANGLE(int object, float heading)
+static void SET_OBJECT_Z_ANGLE(int object, float heading)
 {
     scriptCommands->ScriptCommand(&scm_SET_OBJECT_Z_ANGLE, object, heading);
 }
 
-int CleoFunctions::CREATE_OBJECT(int modelId, float x, float y, float z)
+static int CREATE_OBJECT(int modelId, float x, float y, float z)
 {
     int object = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_OBJECT, modelId, x, y, z, &object);
     return object;
 }
 
-float CleoFunctions::GROUND_Z_AT(float x, float y, float z)
+static float GROUND_Z_AT(float x, float y, float z)
 {
     float groundZ = 0;
     scriptCommands->ScriptCommand(&scm_GROUND_Z_AT, x, y, z, &groundZ);
     return groundZ;
 }
 
-void CleoFunctions::PUT_CAR_AT(int car, float x, float y, float z)
+static void PUT_CAR_AT(int car, float x, float y, float z)
 {
     scriptCommands->ScriptCommand(&scm_PUT_CAR_AT, car, x, y, z);
 }
 
-void CleoFunctions::SET_CAR_Z_ANGLE(int car, float heading)
+static void SET_CAR_Z_ANGLE(int car, float heading)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_Z_ANGLE, car, heading);
 }
 
-float CleoFunctions::ACTOR_Z_ANGLE(int _char)
+static float ACTOR_Z_ANGLE(int _char)
 {
     float heading = 0;
     scriptCommands->ScriptCommand(&scm_ACTOR_Z_ANGLE, _char, &heading);
     return heading;
 }
 
-void CleoFunctions::ROTATE_AND_SHOOT(int _char, float x, float y, float z, int time)
+static void ROTATE_AND_SHOOT(int _char, float x, float y, float z, int time)
 {
     scriptCommands->ScriptCommand(&scm_ROTATE_AND_SHOOT, _char, x, y, z, time);
 }
 
-int CleoFunctions::GET_ACTOR_MODEL(int _char)
+static int GET_ACTOR_MODEL(int _char)
 {
     int modelId = 0;
     scriptCommands->ScriptCommand(&scm_GET_ACTOR_MODEL, _char, &modelId);
     return modelId;
 }
 
-void CleoFunctions::AS_ACTOR_RUN_TO_ACTOR(int walking, int target, int time, float radius)
+static void AS_ACTOR_RUN_TO_ACTOR(int walking, int target, int time, float radius)
 {
     scriptCommands->ScriptCommand(&scm_AS_ACTOR_RUN_TO_ACTOR, walking, target, time, radius);
 }
 
-void CleoFunctions::SET_MAX_WANTED_LEVEL_TO(int wantedLevel)
+static void SET_MAX_WANTED_LEVEL_TO(int wantedLevel)
 {
     scriptCommands->ScriptCommand(&scm_SET_MAX_WANTED_LEVEL_TO, wantedLevel);
 }
 
-void CleoFunctions::SET_PLAYER_IGNORED_BY_COPS(int player, bool state)
+static void SET_PLAYER_IGNORED_BY_COPS(int player, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_PLAYER_IGNORED_BY_COPS, player, state);
 }
 
-void CleoFunctions::PUT_TRAILER_ON_CAB(int trailer, int cab)
+static void PUT_TRAILER_ON_CAB(int trailer, int cab)
 {
     scriptCommands->ScriptCommand(&scm_PUT_TRAILER_ON_CAB, trailer, cab);
 }
 
-void CleoFunctions::AS_ACTOR_DRIVE_CAR_TO(int driver, int vehicle, float x, float y, float z, float speed, int driveStyle, int modelId, int drivingStyle)
+static void AS_ACTOR_DRIVE_CAR_TO(int driver, int vehicle, float x, float y, float z, float speed, int driveStyle, int modelId, int drivingStyle)
 {
     scriptCommands->ScriptCommand(&scm_AS_ACTOR_DRIVE_CAR_TO, driver, vehicle, x, y, z, speed, driveStyle, modelId, drivingStyle);
 }
 
-void CleoFunctions::CLEAR_ACTOR_TASK(int _char)
+static void CLEAR_ACTOR_TASK(int _char)
 {
     scriptCommands->ScriptCommand(&scm_CLEAR_ACTOR_TASK, _char);
 }
 
-void CleoFunctions::CHANGE_PLAYER_MODEL_TO(int player, int modelId)
+static void CHANGE_PLAYER_MODEL_TO(int player, int modelId)
 {
     scriptCommands->ScriptCommand(&scm_CHANGE_PLAYER_MODEL_TO, player, modelId);
 }
 
-int CleoFunctions::GET_CAR_MODEL(int car)
+static int GET_CAR_MODEL(int car)
 {
     int modelId = 0;
     scriptCommands->ScriptCommand(&scm_GET_CAR_MODEL, car, &modelId);
     return modelId;
 }
 
-int CleoFunctions::CREATE_ACTOR_PEDTYPE_IN_CAR_PASSENGER_SEAT(int vehicle, int pedType, int modelId, int seatId)
+static int CREATE_ACTOR_PEDTYPE_IN_CAR_PASSENGER_SEAT(int vehicle, int pedType, int modelId, int seatId)
 {
     int ped = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_ACTOR_PEDTYPE_IN_CAR_PASSENGER_SEAT, vehicle, pedType, modelId, seatId, &ped);
     return ped;
 }
 
-void CleoFunctions::GIVE_ACTOR_WEAPON(int _char, int weaponType, int ammo)
+static void GIVE_ACTOR_WEAPON(int _char, int weaponType, int ammo)
 {
     scriptCommands->ScriptCommand(&scm_GIVE_ACTOR_WEAPON, _char, weaponType, ammo);
 }
 
-void CleoFunctions::SHOW_TEXT_BOX(const char* key)
+static void SHOW_TEXT_BOX(const char* key)
 {
     scriptCommands->ScriptCommand(&scm_SHOW_TEXT_BOX, key);
 }
 
-void CleoFunctions::HELI_FOLLOW(int heli, int _char, int vehicle, float radius)
+static void HELI_FOLLOW(int heli, int _char, int vehicle, float radius)
 {
     scriptCommands->ScriptCommand(&scm_HELI_FOLLOW, heli, _char, vehicle, radius);
 }
 
-void CleoFunctions::SET_CAR_ENGINE_OPERATION(int car, bool state)
+static void SET_CAR_ENGINE_OPERATION(int car, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_ENGINE_OPERATION, car, state);
 }
 
-void CleoFunctions::SET_HELICOPTER_INSTANT_ROTOR_START(int heli)
+static void SET_HELICOPTER_INSTANT_ROTOR_START(int heli)
 {
     scriptCommands->ScriptCommand(&scm_SET_HELICOPTER_INSTANT_ROTOR_START, heli);
 }
 
-void CleoFunctions::FADE(int time, int direction)
+static void FADE(int time, int direction)
 {
     scriptCommands->ScriptCommand(&scm_FADE, time, direction);
 }
 
-void CleoFunctions::DESTROY_CAR(int car)
+static void DESTROY_CAR(int car)
 {
     scriptCommands->ScriptCommand(&scm_DESTROY_CAR, car);
 }
 
-void CleoFunctions::SET_CAR_DOOR_STATUS(int car, int lockStatus)
+static void SET_CAR_DOOR_STATUS(int car, int lockStatus)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_DOOR_STATUS, car, lockStatus);
 }
 
-void CleoFunctions::ACTOR_ENTER_CAR_PASSENGER_SEAT(int _char, int vehicle, int time, int seatId)
+static void ACTOR_ENTER_CAR_PASSENGER_SEAT(int _char, int vehicle, int time, int seatId)
 {
     scriptCommands->ScriptCommand(&scm_ACTOR_ENTER_CAR_PASSENGER_SEAT, _char, vehicle, time, seatId);
 }
 
-void CleoFunctions::CAR_DRIVE_TO(int car, float x, float y, float z)
+static void CAR_DRIVE_TO(int car, float x, float y, float z)
 {
     scriptCommands->ScriptCommand(&scm_CAR_DRIVE_TO, car, x, y, z);
 }
 
-void CleoFunctions::FREEZE_CAR_POSITION(int car, bool state)
+static void FREEZE_CAR_POSITION(int car, bool state)
 {
     scriptCommands->ScriptCommand(&scm_FREEZE_CAR_POSITION, car, state);
 }
 
-void CleoFunctions::SET_MARKER_COLOR_TO(int blip, int color)
+static void SET_MARKER_COLOR_TO(int blip, int color)
 {
     scriptCommands->ScriptCommand(&scm_SET_MARKER_COLOR_TO, blip, color);
 }
 
-void CleoFunctions::SET_ACTOR_WEAPON_AND_AMMO(int _char, int weaponType, int ammo)
+static void SET_ACTOR_WEAPON_AND_AMMO(int _char, int weaponType, int ammo)
 {
     scriptCommands->ScriptCommand(&scm_SET_ACTOR_WEAPON_AND_AMMO, _char, weaponType, ammo);
 }
 
-void CleoFunctions::ENABLE_CAR_SIREN(int car, bool state)
+static void ENABLE_CAR_SIREN(int car, bool state)
 {
     scriptCommands->ScriptCommand(&scm_ENABLE_CAR_SIREN, car, state);
 }
 
-bool CleoFunctions::ACTOR_DEAD(int actor)
+static bool ACTOR_DEAD(int actor)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_ACTOR_DEAD, actor);
     return result;
 }
 
-bool CleoFunctions::ACTOR_DEFINED(int actor)
+static bool ACTOR_DEFINED(int actor)
 {
     bool result = false;
     result = scriptCommands->ScriptCommand(&scm_ACTOR_DEFINED, actor);
     return result;
 }
 
-void CleoFunctions::SET_ACTOR_WANTED_BY_POLICE(int _char, bool state)
+static void SET_ACTOR_WANTED_BY_POLICE(int _char, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_ACTOR_WANTED_BY_POLICE, _char, state);
 }
 
-void CleoFunctions::KILL_ACTOR(int killer, int target)
+static void KILL_ACTOR(int killer, int target)
 {
     scriptCommands->ScriptCommand(&scm_KILL_ACTOR, killer, target);
 }
 
-void CleoFunctions::FLEE_FROM_ACTOR(int _char, int threat, float radius, int time)
+static void FLEE_FROM_ACTOR(int _char, int threat, float radius, int time)
 {
     scriptCommands->ScriptCommand(&scm_FLEE_FROM_ACTOR, _char, threat, radius, time);
 }
 
-void CleoFunctions::STORE_PED_PATH_COORDS_CLOSEST_TO(float x, float y, float z, float* nodeX, float* nodeY, float* nodeZ)
+static void STORE_PED_PATH_COORDS_CLOSEST_TO(float x, float y, float z, float* nodeX, float* nodeY, float* nodeZ)
 {
     scriptCommands->ScriptCommand(&scm_STORE_PED_PATH_COORDS_CLOSEST_TO, x, y, z, nodeX, nodeY, nodeZ);
 }
 
-int CleoFunctions::CREATE_ACTOR_PEDTYPE(int pedType, int modelId, float x, float y, float z)
+static int CREATE_ACTOR_PEDTYPE(int pedType, int modelId, float x, float y, float z)
 {
     int _char = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_ACTOR_PEDTYPE, pedType, modelId, x, y, z, &_char);
     return _char;
 }
 
-void CleoFunctions::SET_MARKER_SIZE(int blip, int size)
+static void SET_MARKER_SIZE(int blip, int size)
 {
     scriptCommands->ScriptCommand(&scm_SET_MARKER_SIZE, blip, size);
 }
 
-bool CleoFunctions::PLAYER_AIMING_AT_ACTOR(int player, int _char)
+static bool PLAYER_AIMING_AT_ACTOR(int player, int _char)
 {
     bool result = scriptCommands->ScriptCommand(&scm_PLAYER_AIMING_AT_ACTOR, player, _char);
     return result;
 }
 
-void CleoFunctions::CAR_FOLLOR_CAR(int car, int followCar, float radius)
+static void CAR_FOLLOR_CAR(int car, int followCar, float radius)
 {
     scriptCommands->ScriptCommand(&scm_CAR_FOLLOR_CAR, car, followCar, radius);
 }
 
-int CleoFunctions::CREATE_ACTOR_PEDTYPE_IN_CAR_DRIVERSEAT(int car, int pedType, int modelId)
+static int CREATE_ACTOR_PEDTYPE_IN_CAR_DRIVERSEAT(int car, int pedType, int modelId)
 {
     int _char = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_ACTOR_PEDTYPE_IN_CAR_DRIVERSEAT, car, pedType, modelId, &_char);
     return _char;
 }
 
-int CleoFunctions::CREATE_CAR_AT(int modelId, float x, float y, float z)
+static int CREATE_CAR_AT(int modelId, float x, float y, float z)
 {
     int car = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_CAR_AT, modelId, x, y, z, &car);
     return car;
 }
 
-void CleoFunctions::GET_NEAREST_CAR_PATH_COORDS_FROM(float fromX, float fromY, float fromZ, int type, float* x, float* y, float* z)
+static void GET_NEAREST_CAR_PATH_COORDS_FROM(float fromX, float fromY, float fromZ, int type, float* x, float* y, float* z)
 {
     scriptCommands->ScriptCommand(&scm_GET_NEAREST_CAR_PATH_COORDS_FROM, fromX, fromY, fromZ, type, x, y, z);
 }
 
-int CleoFunctions::CREATE_MARKER_AT(float x, float y, float z, int color, int display)
+static int CREATE_MARKER_AT(float x, float y, float z, int color, int display)
 {
     int blip = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_MARKER_AT, x, y, z, color, display, &blip);
     return blip;
 }
 
-bool CleoFunctions::ACTOR_PERFORMING_ANIMATION(int _char, const char* animationName)
+static bool ACTOR_PERFORMING_ANIMATION(int _char, const char* animationName)
 {
     bool result = scriptCommands->ScriptCommand(&scm_ACTOR_PERFORMING_ANIMATION, _char, animationName);
     return result;
 }
 
-bool CleoFunctions::CAR_DEFINED(int car)
+static bool CAR_DEFINED(int car)
 {
     bool result = scriptCommands->ScriptCommand(&scm_CAR_DEFINED, car);
     return result;
 }
 
-void CleoFunctions::SET_CAR_TRAFFIC_BEHAVIOUR(int car, int drivingStyle)
+static void SET_CAR_TRAFFIC_BEHAVIOUR(int car, int drivingStyle)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_TRAFFIC_BEHAVIOUR, car, drivingStyle);
 }
 
-void CleoFunctions::SET_CAR_MAX_SPEED(int car, float maxSpeed)
+static void SET_CAR_MAX_SPEED(int car, float maxSpeed)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_MAX_SPEED, car, maxSpeed);
 }
 
-void CleoFunctions::SET_CAR_TO_PSYCHO_DRIVER(int car)
+static void SET_CAR_TO_PSYCHO_DRIVER(int car)
 {
     scriptCommands->ScriptCommand(&scm_SET_CAR_TO_PSYCHO_DRIVER, car);
 }
 
-void CleoFunctions::DESTROY_ACTOR(int actor)
+static void DESTROY_ACTOR(int actor)
 {
     scriptCommands->ScriptCommand(&scm_DESTROY_ACTOR, actor);
 }
 
-void CleoFunctions::DESTROY_SPHERE(int sphere)
+static void DESTROY_SPHERE(int sphere)
 {
     scriptCommands->ScriptCommand(&scm_DESTROY_SPHERE, sphere);
 }
 
-int CleoFunctions::CREATE_SPHERE(float x, float y, float z, float radius)
+static int CREATE_SPHERE(float x, float y, float z, float radius)
 {
     int sphere = 0;
     scriptCommands->ScriptCommand(&scm_CREATE_SPHERE, x, y, z, radius, &sphere);
     return sphere;
 }
 
-void CleoFunctions::PUT_ACTOR_IN_GROUP(int group, int _char)
+static void PUT_ACTOR_IN_GROUP(int group, int _char)
 {
     scriptCommands->ScriptCommand(&scm_PUT_ACTOR_IN_GROUP, group, _char);
 }
 
-void CleoFunctions::PUT_ACTOR_IN_GROUP_AS_LEADER(int group, int _char)
+static void PUT_ACTOR_IN_GROUP_AS_LEADER(int group, int _char)
 {
     scriptCommands->ScriptCommand(&scm_PUT_ACTOR_IN_GROUP_AS_LEADER, group, _char);
 }
 
-int CleoFunctions::GET_PLAYER_GROUP(int player)
+static int GET_PLAYER_GROUP(int player)
 {
     int group = 0;
     scriptCommands->ScriptCommand(&scm_GET_PLAYER_GROUP, player, &group);
     return group;
 }
 
-void CleoFunctions::ENTER_CAR_AS_DRIVER_AS_ACTOR(int _char, int vehicle, int time)
+static void ENTER_CAR_AS_DRIVER_AS_ACTOR(int _char, int vehicle, int time)
 {
     scriptCommands->ScriptCommand(&scm_ENTER_CAR_AS_DRIVER_AS_ACTOR, _char, vehicle, time);
 }
 
-void CleoFunctions::EXIT_CAR_AS_ACTOR(int _actor)
+static void EXIT_CAR_AS_ACTOR(int _actor)
 {
     scriptCommands->ScriptCommand(&scm_EXIT_CAR_AS_ACTOR, _actor);
 }
 
-void CleoFunctions::CAR_TURN_OFF_ENGINE(int car)
+static void CAR_TURN_OFF_ENGINE(int car)
 {
     scriptCommands->ScriptCommand(&scm_CAR_TURN_OFF_ENGINE, car);
 }
 
-int CleoFunctions::GET_DRIVER_OF_CAR(int car)
+static int GET_DRIVER_OF_CAR(int car)
 {
     int _char = 0;
     scriptCommands->ScriptCommand(&scm_GET_DRIVER_OF_CAR, car, &_char);
     return _char;
 }
 
-void CleoFunctions::STORE_COORDS_FROM_CAR_WITH_OFFSET(int car, float offsetX, float offsetY, float offsetZ, float* x, float* y, float* z)
+static void STORE_COORDS_FROM_CAR_WITH_OFFSET(int car, float offsetX, float offsetY, float offsetZ, float* x, float* y, float* z)
 {
     scriptCommands->ScriptCommand(&scm_STORE_COORDS_FROM_CAR_WITH_OFFSET, car, offsetX, offsetY, offsetZ, x, y, z);
 }
 
-void CleoFunctions::STORE_COORDS_FROM_ACTOR_WITH_OFFSET(int _char, float offsetX, float offsetY, float offsetZ, float* x, float* y, float* z)
+static void STORE_COORDS_FROM_ACTOR_WITH_OFFSET(int _char, float offsetX, float offsetY, float offsetZ, float* x, float* y, float* z)
 {
     scriptCommands->ScriptCommand(&scm_STORE_COORDS_FROM_ACTOR_WITH_OFFSET, _char, offsetX, offsetY, offsetZ, x, y, z);
 }
 
 /*
-void CleoFunctions::STORE_COORDS_FROM_ACTOR_WITH_OFFSET(float* x, float* y, float* z, int _char, float offsetX, float offsetY, float offsetZ)
+static void STORE_COORDS_FROM_ACTOR_WITH_OFFSET(float* x, float* y, float* z, int _char, float offsetX, float offsetY, float offsetZ)
 {
     scriptCommands->ScriptCommand(&scm_STORE_COORDS_FROM_ACTOR_WITH_OFFSET, x, y, z, _char, offsetX, offsetY, offsetZ);
 }
 */
 
-int CleoFunctions::GET_CAR_IN_SPHERE(float x, float y, float z, float radius, int modelVehicle)
+static int GET_CAR_IN_SPHERE(float x, float y, float z, float radius, int modelVehicle)
 {
     int car = 0;
     scriptCommands->ScriptCommand(&scm_GET_CAR_IN_SPHERE, x, y, z, radius, modelVehicle, &car);
     return car;
 }
 
-bool CleoFunctions::IS_CHAR_IN_ANY_CAR(int _char)
+static bool IS_CHAR_IN_ANY_CAR(int _char)
 {
     bool result = scriptCommands->ScriptCommand(&scm_IS_CHAR_IN_ANY_CAR, _char);
     return result;
 }
 
-void CleoFunctions::REMOVE_REFERENCES_TO_CAR(int car)
+static void REMOVE_REFERENCES_TO_CAR(int car)
 {
     scriptCommands->ScriptCommand(&scm_REMOVE_REFERENCES_TO_CAR, car);
 }
 
-void CleoFunctions::REMOVE_REFERENCES_TO_ACTOR(int _char)
+static void REMOVE_REFERENCES_TO_ACTOR(int _char)
 {
     scriptCommands->ScriptCommand(&scm_REMOVE_REFERENCES_TO_ACTOR, _char);
 }
 
-void CleoFunctions::SET_PLAYER_CAN_MOVE(int player, bool state)
+static void SET_PLAYER_CAN_MOVE(int player, bool state)
 {
     scriptCommands->ScriptCommand(&scm_SET_PLAYER_CAN_MOVE, player, state);
 }
 
-void CleoFunctions::PERFORM_ANIMATION_AS_ACTOR(int _char, const char* animationName, const char* animationFile, float frameDelta, bool loop, bool lockX, bool lockY, bool lockF, int time)
+static void PERFORM_ANIMATION_AS_ACTOR(int _char, const char* animationName, const char* animationFile, float frameDelta, bool loop, bool lockX, bool lockY, bool lockF, int time)
 {
     scriptCommands->ScriptCommand(&scm_PERFORM_ANIMATION_AS_ACTOR, _char, animationName, animationFile, frameDelta, loop, lockX, lockY, lockF, time);
 }
 
-int CleoFunctions::GET_PLAYER_ACTOR(int player)
-{
-    int playerActor = 0;
-    scriptCommands->ScriptCommand(&scm_GET_PLAYER_ACTOR, 0, &playerActor);
-    return playerActor;
-}
-
-void CleoFunctions::GET_CHAR_COORDINATES(int _char, float* x, float* y, float* z)
+static void GET_CHAR_COORDINATES(int _char, float* x, float* y, float* z)
 {
     scriptCommands->ScriptCommand(&scm_GET_CHAR_COORDINATES, _char, x, y, z);
 }
 
-void CleoFunctions::SHOW_TEXT_2NUMBERS_STYLED(const char* key, int num1, int num2, int duration, int style)
+static void SHOW_TEXT_2NUMBERS_STYLED(const char* key, int num1, int num2, int duration, int style)
 {
     scriptCommands->ScriptCommand(&scm_SHOW_TEXT_2NUMBERS_STYLED, key, num1, num2, duration, style);
 }
 
-void CleoFunctions::SHOW_TEXT_3NUMBERS(const char* key, int num1, int num2, int num3, int duration, int style)
+static void SHOW_TEXT_3NUMBERS(const char* key, int num1, int num2, int num3, int duration, int style)
 {
     scriptCommands->ScriptCommand(&scm_SHOW_TEXT_3NUMBERS, key, num1, num2, num3, duration, style);
 }
 
-void CleoFunctions::SHOW_TEXT_3NUMBERS(int gxtId, int num1, int num2, int num3, int duration, int style)
+static void SHOW_TEXT_3NUMBERS(int gxtId, int num1, int num2, int num3, int duration, int style)
 {
     char buffer[256];
     sprintf(buffer, "MPFX%i", gxtId);
-    CleoFunctions::SHOW_TEXT_3NUMBERS(buffer, num1, num2, num3, duration, style);
+    SHOW_TEXT_3NUMBERS(buffer, num1, num2, num3, duration, style);
 }
 
-int CleoFunctions::GET_RANDOM_CHAR_IN_SPHERE(float x, float y, float z, float radius, bool civilian, bool gang, bool criminal)
+static int GET_RANDOM_CHAR_IN_SPHERE(float x, float y, float z, float radius, bool civilian, bool gang, bool criminal)
 {
     int _char = 0;
     scriptCommands->ScriptCommand(&scm_GET_RANDOM_CHAR_IN_SPHERE, x, y, z, radius, civilian, gang, criminal, &_char);
     return _char;
 }
 
-void CleoFunctions::DISABLE_MARKER(int blip)
+static void DISABLE_MARKER(int blip)
 {
     scriptCommands->ScriptCommand(&scm_DISABLE_MARKER, blip);
 }
 
-int CleoFunctions::ADD_BLIP_FOR_CAR(int car)
+static int ADD_BLIP_FOR_CAR(int car)
 {
     int blip = 0;
     scriptCommands->ScriptCommand(&scm_ADD_BLIP_FOR_CAR, car, &blip);
     return blip;
 }
 
-int CleoFunctions::ADD_BLIP_FOR_CHAR(int _char)
+static int ADD_BLIP_FOR_CHAR(int _char)
 {
     int blip = 0;
     scriptCommands->ScriptCommand(&scm_ADD_BLIP_FOR_CHAR, _char, &blip);
     return blip;
 }
 
-bool CleoFunctions::IS_WIDGET_PRESSED(int widgetId)
+static bool IS_WIDGET_PRESSED(int widgetId)
 {
     bool result = scriptCommands->ScriptCommand(&scm_IS_WIDGET_PRESSED, widgetId);
     return result;
 }
 
-bool CleoFunctions::PLAYER_DEFINED(int player)
+static bool PLAYER_DEFINED(int player)
 {
     bool result = scriptCommands->ScriptCommand(&scm_PLAYER_DEFINED, player);
     return result;
 }
 
-bool CleoFunctions::HAS_ANIMATION_LOADED(const char* animationFile)
+static bool HAS_ANIMATION_LOADED(const char* animationFile)
 {
     bool result = scriptCommands->ScriptCommand(&scm_HAS_ANIMATION_LOADED, animationFile);
     return result;
 }
 
-void CleoFunctions::LOAD_ANIMATION(const char* animationFile)
+static void LOAD_ANIMATION(const char* animationFile)
 {
     scriptCommands->ScriptCommand(&scm_LOAD_ANIMATION, animationFile);
 }
 
-int CleoFunctions::CreateMarker(float x, float y, float z, int color, int display, int size)
+static int CreateMarker(float x, float y, float z, int color, int display, int size)
 {
     int blip = CREATE_MARKER_AT(x, y, z, color, display);
     SET_MARKER_SIZE(blip, size);
