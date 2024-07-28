@@ -5,7 +5,6 @@
 
 #include "menu/IMenuVSL.h"
 extern IMenuVSL* menuVSL;
-#define debug menuVSL->debug
 
 class CleoScript {
 public:

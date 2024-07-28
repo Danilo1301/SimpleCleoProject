@@ -1,7 +1,5 @@
 #pragma once
 
-#include "SimpleGTA.h"
-
 #include <iostream>
 #include <cstdint>
 #include <functional>

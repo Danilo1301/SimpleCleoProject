@@ -10,7 +10,7 @@ void CleoScript::OnUpdate()
 
     auto carHandle = ACTOR_USED_CAR(playerActor);
 
-    debug->AddLine("car: " + std::to_string(carHandle));
+    _debug->AddLine("car: " + std::to_string(carHandle));
 
     if(carHandle > 0 && !createdMenu)
     {
@@ -21,20 +21,19 @@ void CleoScript::OnUpdate()
 
 void CleoScript::OnLoad()
 {
-    debug->m_Visible = true;
-
-    debug->AddLine("OnLoad");
+    _debug->visible = true;
+    _debug->AddLine("OnLoad");
 }
 
 void CleoScript::OnFirstUpdate()
 {
-    debug->AddLine("OnFirstUpdate");
+    _debug->AddLine("OnFirstUpdate");
 
     WAIT(3000, []() {
-        debug->AddLine("waited 3 seconds!");
+        _debug->AddLine("waited 3 seconds!");
 
         WAIT(3000, []() {
-            debug->AddLine("waited more 3 seconds!");
+            _debug->AddLine("waited more 3 seconds!");
         });
     });
 }
