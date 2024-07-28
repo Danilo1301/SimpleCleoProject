@@ -13,4 +13,5 @@ public:
     static void OnUpdate();
 
     static void CreateMenu();
+    static void RunSpecialFunctions();
 };
