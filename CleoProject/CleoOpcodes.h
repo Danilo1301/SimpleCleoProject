@@ -3,6 +3,8 @@
 #include "IScriptCommands.h"
 extern IScriptCommands* scriptCommands;
 
+#include "menu/SimpleGTA.h"
+
 static DEFOPCODE(01F5, GET_PLAYER_ACTOR, iv); //01F5: $PLAYER_ACTOR = get_player_actor $PLAYER_CHAR 
 static DEFOPCODE(01B9, SET_ACTOR_ARMED_WEAPON, ii); //01B9: set_actor 2@ armed_weapon_to 0 
 static DEFOPCODE(0635, AIM_AT_ACTOR, iii); //0635: AS_actor -1 aim_at_actor $PLAYER_ACTOR 2000 ms 
@@ -809,4 +811,52 @@ static int CreateMarker(float x, float y, float z, int color, int display, int s
     int blip = CREATE_MARKER_AT(x, y, z, color, display);
     SET_MARKER_SIZE(blip, size);
     return blip;
+}
+
+static CVector GetCarPositionWithOffset(int hVehicle, CVector offset)
+{
+    float x = 0, y = 0, z = 0;
+    STORE_COORDS_FROM_CAR_WITH_OFFSET(hVehicle, offset.x, offset.y, offset.z, &x, &y, &z);
+
+    return CVector(x, y, z);
+}
+
+static CVector GetCarPosition(int hVehicle)
+{
+    return GetCarPositionWithOffset(hVehicle, CVector(0, 0, 0));
+}
+
+static CVector GetPedPositionWithOffset(int hPed, CVector offset)
+{
+    float x = 0, y = 0, z = 0;
+    STORE_COORDS_FROM_ACTOR_WITH_OFFSET(hPed, offset.x, offset.y, offset.z, &x, &y, &z);
+
+    return CVector(x, y, z);
+}
+
+static CVector GetPedPosition(int hPed)
+{
+    return GetPedPositionWithOffset(hPed, CVector(0, 0, 0));
+}
+
+static int GetPlayerActor()
+{
+    return GET_PLAYER_ACTOR(0);
+}
+
+static CVector GetPlayerPosition()
+{
+    return GetPedPositionWithOffset(GetPlayerActor(), CVector(0, 0, 0));
+}
+
+static bool IsActorAliveAndDefined(int hPed)
+{
+    return ACTOR_DEFINED(hPed) && !ACTOR_DEAD(hPed);
+}
+
+static int GetVehiclePedIsUsing(int hPed)
+{
+    if(!IS_CHAR_IN_ANY_CAR(hPed)) return 0;
+
+    return ACTOR_USED_CAR(hPed);
 }
